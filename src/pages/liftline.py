@@ -27,6 +27,34 @@ def liftline():
     bla bla bla
     ''',mathjax=True),
 
+    html.H2("Lifting Line tool"),
+    dcc.Markdown('''
+                 ''',mathjax=True),    
+    # html.Div(
+    #     style={'display': 'flex', 'justifyContent': 'center', 'gap': '10px', 'alignItems': 'center', 'marginTop': '20px'},
+    #     children=[
+    #         html.Label('x:', style={'marginRight': '5px'}),
+    #         dcc.Input(id='x_point_intercept', type='number', step=0.1, value=0),
+    #         html.Label('y:', style={'marginLeft': '20px', 'marginRight': '5px'}),
+    #         dcc.Input(id='y_point_intercept', type='number', step=0.1, value=0)
+    #     ]),
+
+    html.Br(),
+
+    dcc.Store(id='filam-store-lift'),  # Hidden store for Filam object
+    
+    html.Label('Discretisation:'),
+    dcc.Slider(0, 10,
+               value=1,
+               id='num-lines',
+              ),
+
+    html.Button('Draw', id='draw-button-lift', n_clicks=0),
+
+    ## Graph updated via app.callable() in main.py
+    dcc.Graph(id='liftline', config={'clickmode': 'event+select'}),  # Enable clickmode to select points
+
+
     html.Label('Strength Slider:'),
     dcc.Slider(-2, 2,
                value=1,

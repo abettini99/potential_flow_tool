@@ -29,6 +29,7 @@ from src.pages.tat import tat
 from src.pages.panel import panel
 from src.pages.liftline import liftline
 from src.pages.numliftline import numliftline
+from src.pages.downwash import downwash
 from src.pages.vortfil import vortfil
 from src.pages.vortfil import VortexFilament
 from src.plots.plotUniform import plotUniform
@@ -108,6 +109,7 @@ sidebar = html.Div([
         html.H3(f"Wing Analysis", className="lead", style={'fontSize' : '24px'}),
         dbc.Nav(
             [
+                dbc.NavLink("Downwash",         href="/downwash", active="exact"),
                 dbc.NavLink("Vortex filaments", href="/vortfil", active="exact"),
                 dbc.NavLink("Lifting line theory", href="/liftline", active="exact"),
                 dbc.NavLink("Numerical lifting line", href="/numliftline", active="exact"),
@@ -161,6 +163,8 @@ def render_page_content(pathname):
         return tat()
     elif pathname == f"/panel":
         return panel()
+    elif pathname == f"/downwash":
+        return downwash()
     elif pathname == f"/vortfil":
         return vortfil()
     elif pathname == f"/liftline":
@@ -255,7 +259,6 @@ def updateRotatingCylinderFigure(Vinf, radius, Gamma):
 @app.callback(
     Output('vort', 'figure'),
     Output('filam-store', 'data'),  # Store the Filam object
-    Output('transform-store', 'data'),  # Store the transformation matrix
     Input('draw-button', 'n_clicks'),  # Trigger based on the draw button click
     Input('split-button', 'n_clicks'),  # Trigger based on the split button click
     State('x_point_intercept', 'value'),  # Capture the current values but do not trigger on change
@@ -268,30 +271,12 @@ def updateRotatingCylinderFigure(Vinf, radius, Gamma):
     State('filam-store', 'data')  # Get the current stored Filam object
 )
 def handle_vortex_operations(draw_clicks, split_clicks, x, y, Gamma, theta, selected_point, angle_1, angle_2, data):
-    # Determine if we are drawing a new vortex or splitting the existing one
-    roll_angle = -np.deg2rad(60)
-    pitch_angle = -np.deg2rad(20)
-    roll_angle2 = np.deg2rad(5)
-
-    roll_transform = np.array([[1,0,0],
-                               [0,np.cos(roll_angle),-np.sin(roll_angle)],
-                               [0,np.sin(roll_angle),np.cos(roll_angle)]])
-    pitch_transform = np.array([[np.cos(pitch_angle),0,np.sin(pitch_angle)],
-                                [0,1,0],
-                                [-np.sin(pitch_angle),0,np.cos(pitch_angle)]])
-
-    transform = np.dot(pitch_transform, roll_transform)
-
-    roll_transform2 = np.array([[1,0,0],[0,np.cos(roll_angle2),-np.sin(roll_angle2)],[0,np.sin(roll_angle2),np.cos(roll_angle2)]])
-    transform = np.dot(roll_transform2,transform)
-
-    transform_store = transform.tolist()
     
 
     ctx = dash.callback_context
     if not ctx.triggered:
         # If nothing has triggered the callback yet, return empty figure and no change in data
-        return go.Figure(), data, transform_store
+        return go.Figure(), data
 
     button_id = ctx.triggered[0]['prop_id'].split('.')[0]
 
@@ -300,7 +285,7 @@ def handle_vortex_operations(draw_clicks, split_clicks, x, y, Gamma, theta, sele
         vec = np.array([np.sin(np.deg2rad(theta)), np.cos(np.deg2rad(theta)), 0])
         Filam = VortexFilament(Gamma, [x, y, 0], vec)
         Filam_dict = Filam.to_dict()
-        return Filam.draw_vortex_family([-2.1, 2.1], [-2, 2], transform=transform), Filam_dict, transform_store
+        return Filam.draw_all([-2.1, 2.1], [-2, 2], [-2, 2]), Filam_dict
 
     elif button_id == 'split-button' and split_clicks:
         # Splitting the vortex filament
@@ -319,33 +304,61 @@ def handle_vortex_operations(draw_clicks, split_clicks, x, y, Gamma, theta, sele
         Filam.split([0.9, 0.1], [selected_x, selected_y, 0], [angle_1, angle_2])
 
         Filam_dict = Filam.to_dict()
-        return Filam.draw_vortex_family([-2.1, 2.1], [-2, 2], transform=transform), Filam_dict, transform_store
+        return Filam.draw_all([-2.1, 2.1], [-2, 2], [-2, 2]), Filam_dict
 
     # If no valid action, return the same data and figure
-    return go.Figure(), data, transform_store
+    return go.Figure(), data
+
+@app.callback(
+    Output('liftline', 'figure'),
+    Output('filam-store-lift', 'data'),  # Store the Filam object
+    Input('draw-button-lift', 'n_clicks'),  # Trigger based on the draw button click
+    State('num-lines', 'value'), # Number of discretisation of the lifting line
+)
+def draw_lifting_line(draw_clicks, num_lines):
+    
+    test_wing = VortexFilament(0.5,[-2,1,0],[0,1,0])
+    test_wing.bend([-2,2,0],-90)
+
+    wing_for = test_wing.children[0]
+
+    x_splits = np.linspace(-2, 0, 5)[1:-1]
+    y = 2
+    z = 0
+    
+    for i in x_splits:
+        wing_for.split([1.05,-0.05],[i,y,z],[0,-90])
+        wing_for = wing_for.children[0]
+    
+    x_after_splits = np.linspace(0, 2, 5)[:-1]
+    for i in x_after_splits:
+        wing_for.split([0.95,0.05],[i,y,z],[0,-90])
+        wing_for = wing_for.children[0]
+    wing_for.bend([2,y,0],-90)
+
+    test_wing.draw_vortex_family([-3,3],[-3,3])
+
+    fig = test_wing.draw_all([-3,3],[-1,5],[-3,3], y_val = 3)
+    return fig, test_wing.to_dict()
 
 @app.callback(
     Output('selected-point-output', 'children'),  # Display the clicked point
-    Input('vort', 'clickData'),  # Capture click events on the graph
-    Input('transform-store', 'data')
+    Input('vort', 'clickData')  # Capture click events on the graph
 )
-def display_selected_data(clickData, transform):
+def display_selected_data(clickData):
     if clickData is None:
         return "Click on a point on the graph to select it."
-
-    transform = np.array(transform)[:2,:2]
-    transform = np.linalg.inv(transform)
 
     # Extract the selected point's x and y coordinates from clickData
     selected_x = clickData['points'][0]['x']
     selected_y = clickData['points'][0]['y']
 
 
-    selected_point = np.array([selected_x, selected_y])
+    # selected_point = np.array([selected_x, selected_y])
 
-    selected_point = np.dot(transform, selected_point)
-    selected_x = selected_point[0]
-    selected_y = selected_point[1]
+    # selected_point = np.dot(transform, selected_point)
+    # selected_x = selected_point[0]
+    # selected_y = selected_point[1]
     
     # You can now use selected_x and selected_y for further processing
     return f"Selected Point: x = {selected_x:.2f}, y = {selected_y:.2f}"
