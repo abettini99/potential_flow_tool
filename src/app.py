@@ -28,6 +28,7 @@ from src.pages.vortex import vortex
 from src.pages.tat import tat
 from src.pages.panel import panel
 from src.pages.liftline import liftline
+from src.pages.liftline import calculate_liftline, draw_liftline
 from src.pages.numliftline import numliftline
 from src.pages.downwash import downwash
 from src.pages.vortfil import vortfil
@@ -111,8 +112,7 @@ sidebar = html.Div([
             [
                 dbc.NavLink("Downwash",         href="/downwash", active="exact"),
                 dbc.NavLink("Vortex filaments", href="/vortfil", active="exact"),
-                dbc.NavLink("Lifting line theory", href="/liftline", active="exact"),
-                dbc.NavLink("Numerical lifting line", href="/numliftline", active="exact"),
+                dbc.NavLink("Lifting line theory", href="/liftline", active="exact")
             ],
             vertical=True,
             pills=True,
@@ -169,8 +169,6 @@ def render_page_content(pathname):
         return vortfil()
     elif pathname == f"/liftline":
         return liftline()
-    elif pathname == f"/numliftline":
-        return numliftline()
 
 ## ------------------------------ ##
 ## App callables for uniform page ##
@@ -268,9 +266,10 @@ def updateRotatingCylinderFigure(Vinf, radius, Gamma):
     State('selected-point-output', 'children'),
     State('angle_1', 'value'),
     State('angle_2', 'value'),
-    State('filam-store', 'data')  # Get the current stored Filam object
+    State('filam-store', 'data'),  # Get the current stored Filam object
+    State('StrengthSplit', 'value')
 )
-def handle_vortex_operations(draw_clicks, split_clicks, x, y, Gamma, theta, selected_point, angle_1, angle_2, data):
+def handle_vortex_operations(draw_clicks, split_clicks, x, y, Gamma, theta, selected_point, angle_1, angle_2, data, Gamma_split):
     
 
     ctx = dash.callback_context
@@ -300,8 +299,10 @@ def handle_vortex_operations(draw_clicks, split_clicks, x, y, Gamma, theta, sele
         # Recreate the Filam object from the stored data
         Filam = VortexFilament.from_dict(data)
 
+        Filam_to_split = Filam.find_Filament(np.array([selected_x, selected_y, 0]))
+
         # Split the vortex filament at the selected point
-        Filam.split([0.9, 0.1], [selected_x, selected_y, 0], [angle_1, angle_2])
+        Filam_to_split.split([Gamma_split, 1-Gamma_split], [selected_x, selected_y, 0], [angle_1, angle_2])
 
         Filam_dict = Filam.to_dict()
         return Filam.draw_all([-2.1, 2.1], [-2, 2], [-2, 2]), Filam_dict
@@ -311,35 +312,48 @@ def handle_vortex_operations(draw_clicks, split_clicks, x, y, Gamma, theta, sele
 
 @app.callback(
     Output('liftline', 'figure'),
-    Output('filam-store-lift', 'data'),  # Store the Filam object
     Input('draw-button-lift', 'n_clicks'),  # Trigger based on the draw button click
+    State('VortexStrength_liftline', 'value'),  # Capture the current values but do not trigger on change
     State('num-lines', 'value'), # Number of discretisation of the lifting line
+    State('VelInfMag_liftline', 'value'), # Freestream velocity
+    State('mesh-type-liftline', 'value'), # Type of meshing
+    State('distribution-type-liftline', 'value') # Type of distribution
 )
-def draw_lifting_line(draw_clicks, num_lines):
-    
-    test_wing = VortexFilament(0.5,[-2,1,0],[0,1,0])
-    test_wing.bend([-2,2,0],-90)
+def draw_lifting_line(draw_clicks, Gamma_0, num_lines, Vinf, mesh_type, dist_type):
+    ctx = dash.callback_context
+    if not ctx.triggered:
+        # If nothing has triggered the callback yet, return empty figure and no change in data
+        return go.Figure()
+    num_lines *= 2
 
-    wing_for = test_wing.children[0]
+    if num_lines<=2:
+        test_wing = VortexFilament(Gamma_0,[-2,1,0],[0,1,0])
+        test_wing.bend([-2,0,0],-90)
+        wing_for = test_wing.children[0]
+        wing_for.bend([2,0,0],-90)
+        fig = test_wing.draw_all([-3,3],[-4,2],[-3,3], y_val = 3, Vinf = np.array([0,-Vinf,0]))
+    else:
+        results = calculate_liftline(num_lines, dist_type, Vinf, mesh_type, 4, Gamma_0)
 
-    x_splits = np.linspace(-2, 0, 5)[1:-1]
-    y = 2
-    z = 0
-    
-    for i in x_splits:
-        wing_for.split([1.05,-0.05],[i,y,z],[0,-90])
-        wing_for = wing_for.children[0]
-    
-    x_after_splits = np.linspace(0, 2, 5)[:-1]
-    for i in x_after_splits:
-        wing_for.split([0.95,0.05],[i,y,z],[0,-90])
-        wing_for = wing_for.children[0]
-    wing_for.bend([2,y,0],-90)
+        y = results['y']
+        Gamma = results['Gamma']
+        Gamma_diff = results['Gamma_diff']
+        lift_dist = results['lift_dist']
+        Downwash = results['Downwash']
 
-    test_wing.draw_vortex_family([-3,3],[-3,3])
+        test_wing = VortexFilament(Gamma_diff[0],[-2,1,0],[0,1,0])
+        test_wing.bend([-2,0,0],-90)
+        wing_for = test_wing.children[0]
 
-    fig = test_wing.draw_all([-3,3],[-1,5],[-3,3], y_val = 3)
-    return fig, test_wing.to_dict()
+        for i in range(len(Gamma[1:])):
+            wing_for.manual_split([Gamma[i+1],-Gamma_diff[i+1]],[y[i+1],0,0],[0,-90])
+            wing_for = wing_for.children[0]
+        wing_for.bend([y[-1],0,0],-90)
+
+        fig = test_wing.draw_all([-3,3],[-4,2],[-3,3], y_val = 3, Vinf = np.array([0,-Vinf,0]))
+        fig = draw_liftline(results, 0, fig)
+
+    return fig
 
 @app.callback(
     Output('selected-point-output', 'children'),  # Display the clicked point

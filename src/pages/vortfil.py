@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 
+
 import time
 
 import plotly.express as px
@@ -33,6 +34,15 @@ class VortexFilament:
         self.new_Point = None
         self.new_start = None
         self.new_end = None
+    
+    def find_Filament(self, coord):
+        if self.check_point_on_line(coord):
+            return self
+        for i in self.children:
+            result = i.find_Filament(coord)
+            if result is not None:
+                return result
+        return None
 
     def calculate_velocity(self, coord):
         h, dir= self.calculate_h(coord)
@@ -99,7 +109,6 @@ class VortexFilament:
     def calculate_velocity_family_2(self, coord):
         check = self.check_point_on_line(coord)
         if check == True:
-            print("Point on line")
             vel = np.array([0.,0.,0.])
         else:
             vel = self.calculate_velocity_2(coord)
@@ -113,6 +122,7 @@ class VortexFilament:
     def check_point_on_line(self, coord):
         mu=np.zeros(3)
         Threshold = 0.1
+        coord = np.array(coord)
         if 0 in self.vector:
             zero_element = np.where(np.round(self.vector,7) == 0)[0]
             non_zero_element = np.where(np.round(self.vector,7) != 0)[0]
@@ -128,6 +138,17 @@ class VortexFilament:
         
         if abs(mu[0] - mu[1]) > Threshold or abs(mu[0] - mu[2]) > Threshold or abs(mu[1] - mu[2]) > Threshold:
             return False
+        
+        if non_zero_element is not None:
+            elem = non_zero_element[0]
+        else:
+            elem = self.vector[0]
+        if self.start is not None:
+            if ((self.start[elem]-coord[elem])/self.vector[elem]) > 0:
+                return False
+        if self.end is not None:
+            if ((self.end[elem]-coord[elem])/self.vector[elem]) <0:
+                return False
         return True
     def split(self, Strengths, coord, angles):
         self.check_point_on_line(coord)
@@ -142,10 +163,22 @@ class VortexFilament:
                 self.children.append(VortexFilament(abs(Strengths[i])*self.Strength, coord, vec, end = coord,prop = Strengths[i]))
             else:
                 self.children.append(VortexFilament(Strengths[i]*self.Strength, coord, vec, start = coord,prop = abs(Strengths[i])))
+        for i in self.children:
+            i.parent = self
+    
+    def manual_split(self, Strengths, coord, angles):
+        self.check_point_on_line(coord)
+        coord = np.array(coord)
+        self.end = coord
 
-        print(self.Strength, self.Point, self.vector, self.start, self.end)
-        print(self.children[0].Strength, self.children[0].Point, self.children[0].vector, self.children[0].start, self.children[0].end)
-        print(self.children[1].Strength, self.children[1].Point, self.children[1].vector, self.children[1].start, self.children[1].end)
+        Strengths = np.array(Strengths)
+        for i in range(len(angles)):
+            angles[i]=angles[i]*np.pi/180
+            vec = np.array([self.vector[0]*np.cos(angles[i])-self.vector[1]*np.sin(angles[i]),self.vector[0]*np.sin(angles[i])+self.vector[1]*np.cos(angles[i]),0])*np.sign(Strengths[i])
+            if Strengths[i] < 0: 
+                self.children.append(VortexFilament(abs(Strengths[i]), coord, vec, end = coord,prop = None))
+            else:
+                self.children.append(VortexFilament(Strengths[i], coord, vec, start = coord,prop = None))
         for i in self.children:
             i.parent = self
 
@@ -155,7 +188,7 @@ class VortexFilament:
         self.end = coord
         angle=angle*np.pi/180
         vec = np.array([self.vector[0]*np.cos(angle)-self.vector[1]*np.sin(angle),self.vector[0]*np.sin(angle)+self.vector[1]*np.cos(angle),0])
-        self.children.append(VortexFilament(self.Strength, coord, vec, start = coord))
+        self.children.append(VortexFilament(self.Strength, coord, vec, start = coord, prop = 1))
         for i in self.children:
             i.parent = self
 
@@ -165,11 +198,11 @@ class VortexFilament:
         for i in self.children:
             i.calc_vortex_family(self.Strength)
 
-    def draw_all(self, limit_x, limit_y, limit_z, y_val=-1, reso = 52):
+    def draw_all(self, limit_x, limit_y, limit_z, y_val=-1, reso = 52, Vinf = np.array([0,0,0])):
         fig = self.draw_vortex_family_3d(limit_x, limit_y, limit_z)
         # fig = self.draw_surface(limit_x, limit_y, limit_z, y_val, fig, reso)
         start = time.time()
-        fig = self.draw_cones(limit_x, limit_y, limit_z, fig, 10)
+        fig = self.draw_cones(limit_x, limit_y, limit_z, fig, 10, Vinf)
         print("Time to draw cones: ", time.time()-start)
         return fig
 
@@ -271,13 +304,8 @@ class VortexFilament:
 
         
         return x_points, y_points, z_points
-        
-
-
-
-
-
-    def draw_cones(self, limit_x, limit_y, limit_z, fig=None, reso = 30):
+    
+    def draw_cones(self, limit_x, limit_y, limit_z, fig=None, reso = 30, Vinf = np.array([0,0,0])):
         X,Y,Z = self.gather_points(limit_x, limit_y, limit_z)
 
         # fig_plt = plt.figure()
@@ -305,11 +333,11 @@ class VortexFilament:
         for i in range(X.shape[0]):
             coord = np.array([X[i],Y[i],Z[i]])
             vel = self.calculate_velocity_family_2(coord)
-            u[i] = vel[0]
-            v[i] = vel[1]
-            w[i] = vel[2]
+            u[i] = vel[0]+Vinf[0]
+            v[i] = vel[1]+Vinf[1]
+            w[i] = vel[2]+Vinf[2]
             
-        fig.add_trace(go.Cone(x=X, y=Y, z=Z, u=u, v=v, w=w, showscale=True, colorscale='Viridis', sizemode='scaled', sizeref=2))
+        fig.add_trace(go.Cone(x=X, y=Y, z=Z, u=u, v=v, w=w, showscale=True, colorscale='Viridis', sizemode='scaled', sizeref=2, name='Velocity Field', visible = "legendonly", showlegend= True))
 
         return fig
         
@@ -346,7 +374,7 @@ class VortexFilament:
         if fig is None:
             fig = go.Figure()
             fig.update_layout(
-                width=800,
+                width=1200,
                 height=700,
                 autosize=False,
                 scene=dict(
@@ -384,13 +412,20 @@ class VortexFilament:
         fig.add_trace(go.Scatter3d(
                 x=x_arr, y=y_arr, z=z_arr,
                 marker=dict(
-                    size=0
+                    size=0,
                 ),
                 line=dict(
                     color='darkblue',
                     width=2
-                )
+                ),
+                name = 'Vortex Filament',
+                legendgroup='Vortex Filament',
+                showlegend=True
             ))
+        for i in range(self.elem_size):
+            fig.add_trace(go.Cone(x=[x_arr[i]], y=[y_arr[i]], z=[z_arr[i]], 
+                                  u=[self.vector[0]], v=[self.vector[1]], w=[self.vector[2]], 
+                                  showscale=False,sizemode= 'absolute', sizeref=0.07 , showlegend=False, legendgroup='Vortex Filament', colorscale=[[0, 'rgb(0,0,255)'], [1, 'rgb(0,0,255)']]))
         
         
         for i in self.children:
@@ -618,8 +653,23 @@ def vortfil():
     ''',mathjax=True),
     
     html.H2("Vortex Filament tool"),
-    dcc.Markdown('''
+    dcc.Markdown('''This tool is a sandbox for creating and manipulating vortex filaments, and then to visualise the flow field generated by them.
                  ''',mathjax=True),    
+    html.Br(),
+    html.H3("How to use the tool"),
+    dcc.Markdown('''
+    1. **Intercept**: Use the x and y box to create the intercept where the inital vortex filament will intersect.\n
+    2. **Strength Slider**: Use the slider to change the strength of the vortex filament.\n
+    3. **Angle Slider**: Use the slider to change the angle and direction of the vortex filament.\n
+    4. **Draw**: Click the draw button to draw the vortex filament.\n
+    5. **Visualise**: Use the legend to visualise or hide different aspects of the plot, such as the vortex filaments or the velocity field.\n
+                 ''' ,mathjax=True),
+    html.H3("Splitting the vortex filament"),
+    dcc.Markdown('''
+    1. **Strength Split**: Use the slider to change the strength of the split vortex filaments.\n
+    2. **Split angles**: Use the sliders to change the angles where the new filaments will split into.\n
+    3. **Split**: Click the split button to split the vortex filament.\n
+                    ''' ,mathjax=True),
     html.Div(
         style={'display': 'flex', 'justifyContent': 'center', 'gap': '10px', 'alignItems': 'center', 'marginTop': '20px'},
         children=[
@@ -651,6 +701,8 @@ def vortfil():
     dcc.Graph(id='vort', config={'clickmode': 'event+select'}),  # Enable clickmode to select points
     
     html.Div(id='selected-point-output'),  # Output the selected point here
+    html.Label('Strength Split:'),
+    dcc.Slider(id='StrengthSplit', min=0.1, max=0.9, step=0.1, value=0.5),
     html.Label('First split angle:'),
     dcc.Slider(-180, 180,
                value=1,
@@ -664,64 +716,35 @@ def vortfil():
                 ),
     html.Button('Split', id='split-button', n_clicks=0),
 
-
-
-
-    #### ============= ####
-    #### APPLICATION 1 ####
-    #### ============= ####
-    html.Hr(),
-    html.H2("Application: Source + Uniform"),
-
-    dcc.Markdown('''
-    bla bla bla bla bla, velocity graph 2
-    ''',mathjax=True),
-    
-
-    html.Label('Source Strength Slider:'),
-    dcc.Slider(0, 2,
-               value=1,
-               id='sourceStrength2',
-              ),
-    html.Label('Freestream Velocity Slider:'),
-    dcc.Slider(0.1, 2,
-               value=1,
-               id='VelInfMagSourceUniform',
-              ),
-
-    ## Graph updated via app.callable() in main.py
-    dbc.Row([
-        dbc.Col([
-            dcc.Graph(id='sourceuniformV', mathjax=True),
-        ], width=6)
-    ], justify='center'),
-    ## Graph updated via app.callable() in main.py
-    dbc.Row([
-        dbc.Col([
-            dcc.Graph(id='sourceuniformPS', mathjax=True),
-        ], width=4)
-    ], justify='center'),
-
-
-    dcc.Markdown('''
-    We can also look at quantities over the body contour...
-    ''',mathjax=True),
-
-    ## Graph updated via app.callable() in main.py
-    dbc.Row([
-        dbc.Col([
-            dcc.Graph(id='sourceuniformVelS', mathjax=True),
-        ], width=6)
-    ], justify='center'),
-    ## Graph updated via app.callable() in main.py
-    dbc.Row([
-        dbc.Col([
-            dcc.Graph(id='sourceuniformCpS', mathjax=True),
-        ], width=6)
-    ], justify='center')
     ])
 
 if __name__ == '__main__':
+    from liftline import calculate_liftline
+
+    test_wing = VortexFilament(1,[0,0,0],[0.,1,0])
+    test_wing.split([0.5, 0.5],[0,1,0],[0,90])
+    test_wing.children[0].split([0.5, 0.5],[0,2,0],[0,90])
+
+    test_wing.children[1].split([0.5, 0.5],[-2,1,0],[0,90])
+
+    found_wing = test_wing.find_Filament([0,2.5,0])
+    print(found_wing.start, found_wing.end)
+
+    found_wing = test_wing.find_Filament([0,1.5,0])
+    print(found_wing.start, found_wing.end)
+
+    found_wing = test_wing.find_Filament([-2,0,0])
+    print(found_wing.start, found_wing.end)
+
+    found_wing = test_wing.find_Filament([-3,1,0])
+    print(found_wing.start, found_wing.end)
+    test_wing.draw_vortex_family([-3,3],[-3,3])
+    plt.xlim([-3,3])
+    plt.ylim([-3,3])
+    plt.show()
+
+    found_wing = test_wing.find_Filament([-1,1,0])
+    print(found_wing.vector)
 
     # test_wing = VortexFilament(1,[1,1,0],[0.,1,0])
     # test_wing.bend([1,3,0],90)
@@ -738,7 +761,30 @@ if __name__ == '__main__':
     # ax.set_xlabel('X')
     # ax.set_ylabel('Y')
     # ax.set_zlabel('Z')
-    # plt.show()
+    # plt.show()    
+    results = calculate_liftline(10, 1, 1, 'Cosine', 4)
+
+    y = results['y']
+    Gamma = results['Gamma']
+    Gamma_diff = results['Gamma_diff']
+    lift_dist = results['lift_dist']
+    Downwash = results['Downwash']
+
+    test_wing = VortexFilament(Gamma_diff[0],[-2,1,0],[0,1,0])
+    test_wing.bend([-2,2,0],-90)
+    wing_for = test_wing.children[0]
+
+    for i in range(len(Gamma[1:])):
+        wing_for.manual_split([Gamma[i+1],-Gamma_diff[i+1]],[y[i+1],2,0],[0,-90])
+        wing_for = wing_for.children[0]
+
+    wing_for.bend([y[-1],2,0],-90)
+    
+    test_wing.draw_vortex_family([-3,3],[-3,3])
+
+    plt.xlim([-3,3])
+    plt.ylim([-3,3])
+    plt.show()
 
 
     test_wing = VortexFilament(0.5,[-2,1,0],[0,1,0])
