@@ -636,7 +636,10 @@ def vortfil():
         filament, a constant strength of the vortex filament $\Gamma$ is obtained. Consider the equation, as described in the following figure:
 
     ''' ,mathjax=True),
-    html.Img(src='assetsImages/biot_savart.png', style={'width': '50%', 'display': 'block', 'margin': 'auto'}),
+    html.Img(src="assets/biot_savart.png",
+            style={
+                "width": "400px",  # Set desired width
+                "height": "auto"  }),
 
     dcc.Markdown('''
 

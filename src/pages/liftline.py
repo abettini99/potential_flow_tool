@@ -94,32 +94,107 @@ def draw_liftline(Params, x, fig):
 
 def liftline():
     return html.Div(children=[
-    
-    #### ============== ####
-    #### BUILDING BLOCK ####
-    #### ============== ####
+
     html.H1("Lifting line theory"),
 
-    dcc.Markdown('''
-    \\[...\\] \n
-                 
-    The velocity around a source/sink is then given by
-                 
-    $$
-    V_r = \\frac{\\Lambda}{2\\pi r}\\,,
-    $$
-    $$
-    V_\\theta = 0\\,.
-    $$
-
-    Which as a set of cartesian velocities can be found by      
-    EXAMPLE TEXT: \n
-    bla bla bla
+    dcc.Markdown(r'''
+    A vortex filament of strength $\Gamma$ bound to a fixed location in flow will experience a lift force, $L\' = \rho_\infty V_\infty \Gamma$. 
+    This bound vortex is fixed in space. We simulate this by replacing a finite wing of span **b** with a bound vortex from $y = -b/2$ to $y = b/2$. 
+    Due to Helmholtz's Theorem, a bound vortex cannot end in the fluid, so we assume vortex filaments from each of the wingtips extend downstream to infinity. 
+    The bound vortex plus the two trailing downstream form a horseshoe shape as shown below:
     ''',mathjax=True),
 
-    html.H2("Lifting Line tool"),
+    html.Img(src="assets/horseshoe.png",
+            style={
+                    "height": "auto", 
+                    "display": "block", 
+                    "margin-left": "auto", 
+                    "margin-right": "auto"}),
+
     dcc.Markdown('''
-                 ''',mathjax=True),
+        $$
+        \\mathbf{dV} = \\frac{\\Gamma}{4\\pi} \\frac{\\mathbf{dl} \\times \\mathbf{r}}{|\\mathbf{r}|^3}
+        $$
+    ''' , mathjax=True),
+    dcc.Markdown(r'''
+        Consider the downwash $w$ induced along the bound vortex from $y = -b/2$ to $y = b/2$ as shown in the figure below. 
+        The bound vortex induces no velocity along itself but the two trailing vortices contribute to the velocity along the bound vortex in a downward direction. 
+        Hence, the downwash $w(y)$ at any spanwise position $y$ can be expressed as:    
+    ''' , mathjax=True),
+    dcc.Markdown('''
+        $$
+        \\mathbf{dV} = \\frac{\\Gamma}{4\\pi} \\frac{\\mathbf{dl} \\times \\mathbf{r}}{|\\mathbf{r}|^3}
+        $$
+
+        $$
+        w(y) = - \\frac{\\Gamma}{4 \\pi (b/2 + y)} + \\frac{\\Gamma}{4 \\pi (b/2 - y)}
+        $$
+
+        which simplifies to: 
+
+        $$
+        w(y) = - \\frac{\\Gamma}{4 \\pi} + \\frac{b}{4 \\pi ((b/2)^2 - y^2)}
+        $$
+    ''' , mathjax=True),
+    html.Img(src="assets/horseshoe2.png",
+            style={
+                    "height": "auto", 
+                    "display": "block", 
+                    "margin-left": "auto", 
+                    "margin-right": "auto"}),
+        dcc.Markdown('''
+
+        Note that as $y$ approaches $b/2$ or $-b/2$, $w$ goes to $-\infty$. To address this, the lifting line theory suggests superimposing multiple horseshoe vortices along the span, 
+        creating a more realistic distribution of circulation. Each horseshoe vortex contributes a small circulation $d\Gamma$ and the net circulation along the lifting line is the sum 
+        of these contributions. This approach is illustrated in Figure 5.14, where the lifting line is represented by a sequence of bound vortices, each trailing a pair of vortices downstream.\n
+
+        The circulation at $y$ is $d\Gamma$, and its change over the y-axis is given by
+    ''' , mathjax=True),
+    dcc.Markdown('''
+
+        $$
+        d \\Gamma(y) = \\frac{d \\Gamma}{dy}  dy
+        $$
+
+        Using the Biot-Savart law, the induced velocity $dw$ at $y_0$ due to a segment $dy$ of a trailing vortex at location $y$ is given by:
+
+        $$
+        dw = - \\frac{(d\\Gamma / dy)\\, dy}{4 \\pi (y_0 - y)}
+        $$
+
+        Noting that $(d\\Gamma / dy)$ is a negative value, the negative sign makes $dw$ positive downwards.\n\n
+
+        Hence, integrating $dw$ over the wingspan yields
+
+        $$
+        w(y_0) = - \\frac{1}{4 \\pi} \\int_{-b/2}^{b/2} \\frac{(d\\Gamma / dy)\\, dy}{y_0 - y}
+        $$
+
+    ''',mathjax=True),
+    html.Img(src="assets/dgamma.png",
+            style={
+                    "height": "auto", 
+                    "display": "block", 
+                    "margin-left": "auto", 
+                    "margin-right": "auto"}),
+
+    html.H2("Lifting Line tool"),
+
+    dcc.Markdown(r'''
+    The tool below allows you to visualise how a lifting line can simulate the lift distribution of a wing. Using vortex filaments and the Biot-Savart law, 
+    a representative wing can be drawn out if the strength distribution on the wing is known. This tool allows you to visualise the velocity field around a lifting line model. \m
+                 
+    As you know from the lectures, The trailing vortices around the lifting line induce a downwash along the wing. You can try to change the strength distribution of the vortices,
+    the freestream velocity and the discretisation of the wing to see how the downwash changes. Observe the velocity right brfore it reaches the wing. Do you observe an increased angle of attack?
+    
+    ''',mathjax=True),
+    html.H3("How to use the lifting line tool:"),
+    dcc.Markdown(r'''
+    1. **Discretisation**: Select the number of vortices to represent the wing with the slider, and the mesh type with the dropdown menu. The more vortices, the more accurate the simulation. Having a discretisation of 1 means it is a horseshoe vortex.
+    2. **Strength Slider**: Adjust the strength of the vortices. This will change the circulation around the wing. The distribution of the strength can also be changed with the dropdown menu.
+    3. **Freestream Velocity Slider**: Adjust the freestream velocity. This will change the downwash along the wing.
+    4.  **Draw!**: Click the draw button to see the velocity field around the wing. This may take around 10-20 seconds depending on how fine your mesh is. Be patient and only press it once please.
+    ''',mathjax=True),
 
     html.Br(),
 
