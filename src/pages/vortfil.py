@@ -631,6 +631,25 @@ def vortfil():
     #### BUILDING BLOCK ####
     #### ============== ####
     html.H1("Vortex Filaments"),
+    dcc.Markdown(r'''
+        A vortex filament can be curved, leading to a need for more mathematical tools to characterize its flow field. If circulation is taken about any path enclosing the 
+        filament, a constant strength of the vortex filament $\Gamma$ is obtained. Consider the equation, as described in the following figure:
+
+    ''' ,mathjax=True),
+    html.Img(src='assetsImages/biot_savart.png', style={'width': '50%', 'display': 'block', 'margin': 'auto'}),
+
+    dcc.Markdown('''
+
+        $$
+        \\mathbf{dV} = \\frac{\\Gamma}{4\\pi} \\frac{\\mathbf{dl} \\times \\mathbf{r}}{|\\mathbf{r}|^3}
+        $$
+
+        This is called the Biot-Savart law. Hence, the velocity induced at a point P is
+
+        $$
+        \\mathbf{V} = \\int_{-\\infty}^{\\infty} \\frac{\\Gamma}{4\\pi} \\frac{\\mathbf{dl} \\times \\mathbf{r}}{|\\mathbf{r}|^3}
+        $$
+    ''' ,mathjax=True),
 
     dcc.Markdown('''
     \\[...\\] \n
