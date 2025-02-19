@@ -322,9 +322,12 @@ def handle_vortex_operations(draw_clicks, split_clicks, x, y, Gamma, theta, sele
     State('num-lines', 'value'), # Number of discretisation of the lifting line
     State('VelInfMag_liftline', 'value'), # Freestream velocity
     State('mesh-type-liftline', 'value'), # Type of meshing
-    State('distribution-type-liftline', 'value') # Type of distribution
+    State('distribution-type-liftline', 'value'), # Type of distribution
+    State('A_1', 'value'),
+    State('A_2', 'value'), 
+    State('A_3', 'value')
 )
-def draw_lifting_line(draw_clicks, Gamma_0, num_lines, Vinf, mesh_type, dist_type):
+def draw_lifting_line(draw_clicks, Gamma_0, num_lines, Vinf, mesh_type, dist_type, A_1, A_2, A_3):
     ctx = dash.callback_context
     if not ctx.triggered:
         # If nothing has triggered the callback yet, return empty figure and no change in data
@@ -338,7 +341,8 @@ def draw_lifting_line(draw_clicks, Gamma_0, num_lines, Vinf, mesh_type, dist_typ
         wing_for.bend([2,0,0],-90)
         fig = test_wing.draw_all([-3,3],[-4,2],[-3,3], y_val = 3, Vinf = np.array([0,-Vinf,0]))
     else:
-        results = calculate_liftline(num_lines, dist_type, Vinf, mesh_type, 4, Gamma_0)
+        A = [float(A_1), float(A_2), float(A_3)]
+        results = calculate_liftline(num_lines, dist_type, Vinf, mesh_type, 4, Gamma_0, A)
 
         y = results['y']
         Gamma = results['Gamma']
@@ -351,7 +355,10 @@ def draw_lifting_line(draw_clicks, Gamma_0, num_lines, Vinf, mesh_type, dist_typ
         wing_for = test_wing.children[0]
 
         for i in range(len(Gamma[1:])):
-            wing_for.manual_split([Gamma[i+1],-Gamma_diff[i+1]],[y[i+1],0,0],[0,-90])
+            if Gamma[i] <= 0:
+                wing_for.special_split([-Gamma[i+1],Gamma_diff[i+1]],[y[i+1],0,0],[0,-90])
+            else:
+                wing_for.manual_split([Gamma[i+1],-Gamma_diff[i+1]],[y[i+1],0,0],[0,-90])
             wing_for = wing_for.children[0]
         wing_for.bend([y[-1],0,0],-90)
 

@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 import numpy as np
 
-def calculate_liftline(discretisation, distribution, V_inf, mesh = 'Uniform', b=2, gamma0=1):
+def calculate_liftline(discretisation, distribution, V_inf, mesh = 'Uniform', b=2, gamma0=1, A = None):
     if mesh == 'Uniform':
         y = np.linspace(-b/2, b/2, discretisation)  
     elif mesh == 'Cosine':
@@ -20,8 +20,9 @@ def calculate_liftline(discretisation, distribution, V_inf, mesh = 'Uniform', b=
         Gamma = gamma0 * np.sqrt(1 - (2 * mid_y / b)**2)
     elif distribution == 'Cosine':
         Gamma = gamma0 * np.cos(np.pi * mid_y / b)
-    else:
-        raise ValueError('Invalid distribution type')
+    elif distribution == 'General':
+        theta = np.arccos(-2*mid_y/b)
+        Gamma = 2*b*V_inf*(A[0]*np.sin(theta) + A[1]*np.sin(2*theta) + A[2]*np.sin(3*theta))
     
     rho_inf = 1.225
 
@@ -182,17 +183,19 @@ def liftline():
 
     dcc.Markdown(r'''
     The tool below allows you to visualise how a lifting line can simulate the lift distribution of a wing. Using vortex filaments and the Biot-Savart law, 
-    a representative wing can be drawn out if the strength distribution on the wing is known. This tool allows you to visualise the velocity field around a lifting line model. \m
+    a representative wing can be drawn out if the strength distribution on the wing is known. This tool allows you to visualise the velocity field around a lifting line model.
                  
     As you know from the lectures, The trailing vortices around the lifting line induce a downwash along the wing. You can try to change the strength distribution of the vortices,
-    the freestream velocity and the discretisation of the wing to see how the downwash changes. Observe the velocity right brfore it reaches the wing. Do you observe an increased angle of attack?
+    the freestream velocity and the discretisation of the wing to see how the downwash changes. Observe the velocity right brfore it reaches the wing. What do you observe about the incoming flow?
+                 
+    I would also like for you to maximise the number of vortices in the mesh for an elliptical distribution, along with a cosine distribution. What do you observe about the downwash distribution?
     
     ''',mathjax=True),
     html.H3("How to use the lifting line tool:"),
     dcc.Markdown(r'''
     1. **Discretisation**: Select the number of vortices to represent the wing with the slider, and the mesh type with the dropdown menu. The more vortices, the more accurate the simulation. Having a discretisation of 1 means it is a horseshoe vortex.
     2. **Strength Slider**: Adjust the strength of the vortices. This will change the circulation around the wing. The distribution of the strength can also be changed with the dropdown menu.
-    3. **Freestream Velocity Slider**: Adjust the freestream velocity. This will change the downwash along the wing.
+    3. **Freestream Velocity Slider**: Adjust the freestream velocity.
     4.  **Draw!**: Click the draw button to see the velocity field around the wing. This may take around 10-20 seconds depending on how fine your mesh is. Be patient and only press it once please.
     ''',mathjax=True),
 
@@ -201,7 +204,7 @@ def liftline():
     # Hidden store for Filam object
 
     html.Label('Discretisation:'),
-    dcc.Slider(1, 7, 1, 
+    dcc.Slider(1, 12, 1, 
                value=1,
                id='num-lines',
               ),
@@ -221,9 +224,20 @@ def liftline():
             html.Label('Mesh Type:', style={'marginRight': '5px'}),
             dcc.Dropdown(['Uniform', 'Cosine'], 'Uniform', id='mesh-type-liftline', style={'width': '150px'}),
             html.Label('Distribution Type:', style={'marginLeft': '20px', 'marginRight': '5px'}),
-            dcc.Dropdown(['Elliptic', 'Cosine'], 'Elliptic', id='distribution-type-liftline', style={'width': '150px'})
+            dcc.Dropdown(['Elliptic','General', 'Cosine'], 'Elliptic', id='distribution-type-liftline', style={'width': '150px'})
         ]
     ),
+    html.Br(),
+    html.Div(
+        style={'display': 'flex', 'justifyContent': 'center', 'gap': '10px', 'alignItems': 'center', 'marginTop': '20px'},
+        children=[
+            html.Label('$A_1$:', style={'marginRight': '5px'}),
+            dcc.Input(id='A_1', type='number', step=0.1, value=0.1),
+            html.Label('A_2:', style={'marginLeft': '20px', 'marginRight': '5px'}),
+            dcc.Input(id='A_2', type='number', step=0.1, value=0),
+            html.Label('A_3:', style={'marginLeft': '20px', 'marginRight': '5px'}),
+            dcc.Input(id='A_3', type='number', step=0.1, value=0),
+        ]),
     html.Button('Draw', id='draw-button-lift', n_clicks=0),
 
     ## Graph updated via app.callable() in main.py
@@ -233,7 +247,19 @@ def liftline():
     ])
 
 if __name__ == '__main__':
-    result = calculate_liftline(100, 1, 1, mesh='cosine')
-    plt.plot(result['mid_y'], result['Gamma'])
-    plt.plot(result['y'], result['Downwash'])
+    print(np.arccos(-1))
+    print(np.arccos(-2*1.5/4))
+    print(np.arccos(0))
+    print(np.arccos(2*0.5/4))
+    print(np.arccos(2*1.5/4))
+    print(np.arccos(1))
+
+    result = calculate_liftline(100, 'General', 1/4.1, 'Cosine', 2, 1, [1, 0, 1])
+    resultelip = calculate_liftline(100, 'Elliptic', 1, 'Cosine', 2, 1)
+
+    plt.plot(result['mid_y'], result['Gamma'], label='General')
+    # plt.plot(result['y'], result['Downwash'], label='Downwash General')
+    plt.plot(resultelip['mid_y'], resultelip['Gamma'], label='Elliptic')
+    # plt.plot(resultelip['y'], resultelip['Downwash'], label='Downwash Elliptic')
+    plt.legend()
     plt.show()

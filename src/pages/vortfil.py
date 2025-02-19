@@ -181,6 +181,21 @@ class VortexFilament:
                 self.children.append(VortexFilament(Strengths[i], coord, vec, start = coord,prop = None))
         for i in self.children:
             i.parent = self
+    def special_split(self, Strengths, coord, angles):
+        self.check_point_on_line(coord)
+        coord = np.array(coord)
+        self.start = coord
+
+        Strengths = np.array(Strengths)
+        for i in range(len(angles)):
+            angles[i]=angles[i]*np.pi/180
+            vec = np.array([self.vector[0]*np.cos(angles[i])-self.vector[1]*np.sin(angles[i]),self.vector[0]*np.sin(angles[i])+self.vector[1]*np.cos(angles[i]),0])*np.sign(Strengths[i])
+            if Strengths[i] < 0: 
+                self.children.append(VortexFilament(abs(Strengths[i]), coord, vec, start = coord,prop = None))
+            else:
+                self.children.append(VortexFilament(Strengths[i], coord, vec, end = coord,prop = None))
+        for i in self.children:
+            i.parent = self
 
     def bend(self, coord, angle):
         self.check_point_on_line(coord)
